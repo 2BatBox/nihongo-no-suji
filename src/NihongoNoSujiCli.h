@@ -25,7 +25,8 @@ struct NihongoNoSujiCli {
 
 	using Method = EnumField<EnumMethod, EnumMethodToCStr>;
 
-	enum class EnumInputType : unsigned {
+
+	enum class EnumQuestion : unsigned {
 		ARABIC,
 		HIRAGANA,
 		KANJI,
@@ -33,57 +34,59 @@ struct NihongoNoSujiCli {
 		__SIZE
 	};
 
-	struct EnumInputTypeCStr {
-		static const char* to_cstr(const EnumInputType& value) {
+	struct EnumQuestionCStr {
+		static const char* to_cstr(const EnumQuestion& value) {
 			switch(value) {
-				case EnumInputType::ARABIC: return "arabic";
-				case EnumInputType::HIRAGANA: return "hiragana";
-				case EnumInputType::KANJI: return "kanji";
-				case EnumInputType::AUDIO: return "audio";
+				case EnumQuestion::ARABIC: return "arabic";
+				case EnumQuestion::HIRAGANA: return "hiragana";
+				case EnumQuestion::KANJI: return "kanji";
+				case EnumQuestion::AUDIO: return "audio";
 				default: return "[UNKNOWN]";
 			}
 		}
 	};
 
-	using InputType = EnumField<EnumInputType, EnumInputTypeCStr>;
+	using Question = EnumField<EnumQuestion, EnumQuestionCStr>;
 
-	enum class EnumOutputType : unsigned {
+	enum class EnumAnswer : unsigned {
 		ARABIC,
 		HIRAGANA,
+		KANJI,
 		__SIZE
 	};
 
-	struct EnumOutputTypeCStr {
-		static const char* to_cstr(const EnumOutputType& value) {
+	struct EnumAnswerCStr {
+		static const char* to_cstr(const EnumAnswer& value) {
 			switch(value) {
-				case EnumOutputType::ARABIC: return "arabic";
-				case EnumOutputType::HIRAGANA: return "hiragana";
+				case EnumAnswer::ARABIC: return "arabic";
+				case EnumAnswer::HIRAGANA: return "hiragana";
+				case EnumAnswer::KANJI: return "kanji";
 				default: return "[UNKNOWN]";
 			}
 		}
 	};
 
-	using OutputType = EnumField<EnumOutputType, EnumOutputTypeCStr>;
+	using Answer = EnumField<EnumAnswer, EnumAnswerCStr>;
 
-	CliOption<unsigned> rounds = CliOption<unsigned>('r', "Rounds.");
-	CliOption<unsigned> digits_from = CliOption<unsigned>('f', "Digits from. (max 9 for numbers mode)");
-	CliOption<unsigned> digits_to = CliOption<unsigned>('t', "Digits to. (max 9 for numbers mode)");
-	CliOption<InputType> input_type = CliOption<InputType>('i', InputType::description().c_str());
-	CliOption<OutputType> output_type = CliOption<OutputType>('o', InputType::description().c_str());
+	unsigned pr = 1;
+	Option<unsigned> rounds = Option<unsigned>('r', "Rounds.", ++pr);
+	Option<unsigned> digits_from = Option<unsigned>('f', "Digits from. (max 9 for numbers mode)", ++pr);
+	Option<unsigned> digits_to = Option<unsigned>('t', "Digits to. (max 9 for numbers mode)", ++pr);
+	Option<Question> question = Option<Question>('q', Question::description(), ++pr);
+	Option<Answer> answer = Option<Answer>('a', Answer::description(), ++pr);
 
-
-	AppCli<Method> action;
+	AppCliMethod<Method> action;
 
 	NihongoNoSujiCli() {
 		action[EnumMethod::DIGITS]
-			.description("Digit sequences like phone numbers. (7425 -> ななよんにご).")
-			.mandatory(rounds, digits_from, digits_to, input_type, output_type);
+			.desc("Digit sequences like phone numbers. (7425 -> ななよんにご).")
+			.mand(rounds, digits_from, digits_to, question, answer);
 
 		action[EnumMethod::NUMBERS]
-			.description("Numbers. (7425 -> ななせんよんひゃくにじゅうご).")
-			.mandatory(rounds, digits_from, digits_to, input_type, output_type);
+			.desc("Numbers. (7425 -> ななせんよんひゃくにじゅうご).")
+			.mand(rounds, digits_from, digits_to, question, answer);
 
-		action.finilize();
+		action.finalize();
 	}
 
 	bool parse_args(int argc, char** argv) {
@@ -92,14 +95,14 @@ struct NihongoNoSujiCli {
 
 	bool validate() const {
 		bool result = true;
-		result = result && digits_from.value > 0;
-		result = result && digits_from.value <= digits_to.value;
-		result = result && (action.method.value != EnumMethod::NUMBERS || digits_to.value < 10u);
+		result = result && digits_from.value() > 0;
+		result = result && digits_from.value() <= digits_to.value();
+		result = result && (action.action().value != EnumMethod::NUMBERS || digits_to.value() < 10u);
 		return result;
 	}
 
-	void print_usage(FILE* out) {
-		action.print_usage(out);
+	void print_usage(FILE* out, const char* bin) {
+		action.print_usage(out, bin);
 	}
 
 	std::string options_string() const {

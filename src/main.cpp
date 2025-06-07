@@ -4,13 +4,17 @@
 
 #include <cstdio>
 #include <vector>
+#include <locale>
+#include <codecvt>
 
 class NihongoNoSuji {
 
-	static constexpr const char* DIGIT_MAP_ARABIC_SEP[] = {"0 ", "1 ", "2 ", "3 ", "4 ", "5 ", "6 ", "7 ", "8 ", "9 "};
-	static constexpr const char* DIGIT_MAP_ARABIC[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
-	static constexpr const char* DIGIT_MAP_HIRAGANA[] = {"れい", "いち", "に", "さん", "よん", "ご", "ろく", "なな", "はち", "きゅう"};
-	static constexpr const char* DIGIT_MAP_KANJI[] = {"0", "一", "二", "三", "四", "五", "六", "七", "八", "九"};
+	using String_t = std::u32string;
+
+	static constexpr const char32_t* DIGIT_MAP_ARABIC_SEP[] = {U"0 ", U"1 ", U"2 ", U"3 ", U"4 ", U"5 ", U"6 ", U"7 ", U"8 ", U"9 "};
+	static constexpr const char32_t* DIGIT_MAP_ARABIC[] = {U"0", U"1", U"2", U"3", U"4", U"5", U"6", U"7", U"8", U"9"};
+	static constexpr const char32_t* DIGIT_MAP_HIRAGANA[] = {U"れい", U"いち", U"に", U"さん", U"よん", U"ご", U"ろく", U"なな", U"はち", U"きゅう"};
+	static constexpr const char32_t* DIGIT_MAP_KANJI[] = {U"0", U"一", U"二", U"三", U"四", U"五", U"六", U"七", U"八", U"九"};
 
 	using Buffer_t = std::vector<unsigned char>;
 
@@ -21,53 +25,8 @@ public:
 	NihongoNoSuji(const NihongoNoSujiCli& cli) :
 		_cli(cli), _dm(time(nullptr)) {}
 
-	void run() {
-		auto tm_before = time(nullptr);
-
-		const unsigned rounds_total = _cli.rounds;
-		unsigned rounds_left = _cli.rounds;
-		unsigned correct = 0;
-		while(rounds_left--) {
-
-			// Show or play the input.
-			Buffer_t input_buf;
-			generate_input(input_buf);
-			// generate_test_input(input_buf);
-			show_input(input_buf);
-			fflush(stdout);
-
-			// Read the output.
-			std::string output;
-			read_output(output);
-
-			// printf("(%s)\n", output.c_str());
-
-			// Check the result.
-			std::string reference;
-			generate_reference(input_buf, reference);
-			if(output == reference) {
-				++correct;
-			} else {
-				printf("%s", TermColor::front(TermColor::RED));
-				printf("%s", reference.c_str());
-				printf("\n%s", TermColor::reset());
-			}
-			printf("\n");
-		}
-
-		double correct_percent = correct;
-		correct_percent /= rounds_total;
-		correct_percent *= 100;
-
-		printf("Correct : %u of %u (%.2f%%).", correct, rounds_total, correct_percent);
-		const unsigned seconds_total = time(nullptr) - tm_before;
-		printf(" %u seconds.\n", seconds_total);
-	}
-
-	// private:
-
-	void generate_input(Buffer_t& buf) {
-		buf.resize(0);
+	Buffer_t generate_input() {
+		Buffer_t buf;
 		unsigned with = _cli.digits_from + std::abs(_dm.lrand48() / 16) % (_cli.digits_to - _cli.digits_from + 1u);
 		if(with > 0) {
 			--with;
@@ -76,7 +35,137 @@ public:
 				buf.push_back(std::abs(_dm.lrand48()) % 10u);
 			}
 		}
+		return buf;
 	}
+
+	String_t generate_question(const Buffer_t& buf) const {
+		String_t question;
+
+		switch(_cli.action.action().value) {
+			case NihongoNoSujiCli::EnumMethod::DIGITS:
+				switch(_cli.question.value().value) {
+					case NihongoNoSujiCli::EnumQuestion::ARABIC:   write_digits(buf, DIGIT_MAP_ARABIC, question);     break;
+					case NihongoNoSujiCli::EnumQuestion::HIRAGANA: write_digits(buf, DIGIT_MAP_HIRAGANA, question);   break;
+					case NihongoNoSujiCli::EnumQuestion::KANJI:    write_digits(buf, DIGIT_MAP_KANJI, question);      break;
+					case NihongoNoSujiCli::EnumQuestion::AUDIO:    write_digits(buf, DIGIT_MAP_ARABIC_SEP, question); break;
+					default: assert(false); break;
+				}
+				break;
+
+			case NihongoNoSujiCli::EnumMethod::NUMBERS:
+				switch(_cli.question.value().value) {
+					case NihongoNoSujiCli::EnumQuestion::ARABIC:   write_digits(buf, DIGIT_MAP_ARABIC, question); break;
+					case NihongoNoSujiCli::EnumQuestion::HIRAGANA: write_number_hiragana(buf, question);          break;
+					case NihongoNoSujiCli::EnumQuestion::KANJI:    write_number_kanji(buf, question);             break;
+					case NihongoNoSujiCli::EnumQuestion::AUDIO:    write_digits(buf, DIGIT_MAP_ARABIC, question); break;
+					default: assert(false); break;
+				}
+				break;
+
+			default: assert(false); break;
+		}
+
+		return question;
+	}
+
+	String_t generate_reference(const Buffer_t& buf) const {
+		String_t reference;
+
+		switch(_cli.action.action().value) {
+			case NihongoNoSujiCli::EnumMethod::DIGITS:
+				switch(_cli.answer.value().value) {
+					case NihongoNoSujiCli::EnumAnswer::ARABIC:   write_digits(buf, DIGIT_MAP_ARABIC, reference);   break;
+					case NihongoNoSujiCli::EnumAnswer::HIRAGANA: write_digits(buf, DIGIT_MAP_HIRAGANA, reference); break;
+					case NihongoNoSujiCli::EnumAnswer::KANJI:    write_number_kanji(buf, reference);               break;
+					default: assert(false); break;
+				}
+				break;
+
+			case NihongoNoSujiCli::EnumMethod::NUMBERS:
+				switch(_cli.answer.value().value) {
+					case NihongoNoSujiCli::EnumAnswer::ARABIC:   write_digits(buf, DIGIT_MAP_ARABIC, reference); break;
+					case NihongoNoSujiCli::EnumAnswer::HIRAGANA: write_number_hiragana(buf, reference);          break;
+					case NihongoNoSujiCli::EnumAnswer::KANJI:    write_number_kanji(buf, reference);             break;
+					default: assert(false); break;
+				}
+				break;
+
+			default: assert(false); break;
+		}
+
+		return reference;
+	}
+
+	String_t filter_kanji(const String_t& in) const {
+		String_t result;
+		for(const auto ch : in) {
+			switch(ch) {
+				case U'ニ':
+					result.push_back(U'二');
+					break;
+
+				case U'ー':
+					result.push_back(U'一');
+					break;
+
+				default:
+					result.push_back(ch);
+					break;
+			}
+		}
+		return result;
+	}
+
+	void run() {
+		auto tm_before = time(nullptr);
+
+		const unsigned rounds_total = _cli.rounds;
+		unsigned rounds_left = _cli.rounds;
+		unsigned mistakes = 0;
+		while(rounds_left--) {
+
+			const Buffer_t input = generate_input();
+			const String_t question = generate_question(input);
+			const String_t reference = generate_reference(input);
+
+			if(_cli.question.value().value == NihongoNoSujiCli::EnumQuestion::AUDIO) {
+				say(question);
+			} else {
+				printf("%-*s ", int(_cli.digits_to), to_basic_string(question).c_str());
+				fflush(stdout);
+			}
+
+			// Read the output.
+			String_t output;
+			read_line(stdin, output, true);
+			output = filter_kanji(output);
+
+			// Check the result.
+			while(output != reference) {
+				++mistakes;
+				printf("%s", TermColor::front(TermColor::RED));
+				printf("%s", to_basic_string(reference).c_str());
+				printf("\n%s", TermColor::reset());
+
+				if(_cli.question.value().value == NihongoNoSujiCli::EnumQuestion::AUDIO) {
+					say(question);
+				}
+				read_line(stdin, output, true);
+				output = filter_kanji(output);
+			}
+			printf("\n");
+		}
+
+		double miskates_percent = mistakes;
+		miskates_percent /= rounds_total;
+		miskates_percent *= 100;
+
+		printf("Mistakes : %u of %u (%.2f%%).", mistakes, rounds_total, miskates_percent);
+		const unsigned seconds_total = time(nullptr) - tm_before;
+		printf(" %u seconds.\n", seconds_total);
+	}
+
+	// private:
 
 	void generate_test_input(Buffer_t& buf) {
 		static unsigned text_idx = 0;
@@ -129,112 +218,31 @@ public:
 		++text_idx;
 	}
 
-	void show_input(const Buffer_t& buf) {
-		std::string input_string;
-		switch(_cli.input_type.value.value) {
-			case NihongoNoSujiCli::EnumInputType::ARABIC:
-				print_digits(buf, DIGIT_MAP_ARABIC, input_string);
-				printf("%-*s ", int(_cli.digits_to), input_string.c_str());
-				break;
-
-			case NihongoNoSujiCli::EnumInputType::HIRAGANA:
-				switch(_cli.action.method.value) {
-					case NihongoNoSujiCli::EnumMethod::DIGITS:
-						print_digits(buf, DIGIT_MAP_HIRAGANA, input_string);
-						break;
-
-					case NihongoNoSujiCli::EnumMethod::NUMBERS:
-						print_number_hiragana(buf, input_string);
-						break;
-
-					default:
-						break;
-				}
-				printf("%s ", input_string.c_str());
-				break;
-
-			case NihongoNoSujiCli::EnumInputType::KANJI:
-				switch(_cli.action.method.value) {
-					case NihongoNoSujiCli::EnumMethod::DIGITS:
-						print_digits(buf, DIGIT_MAP_KANJI, input_string);
-						break;
-
-					case NihongoNoSujiCli::EnumMethod::NUMBERS:
-						print_number_kanji(buf, input_string);
-						break;
-
-					default:
-						break;
-				}
-				printf("%s ", input_string.c_str());
-				break;
-
-			case NihongoNoSujiCli::EnumInputType::AUDIO:
-				switch(_cli.action.method.value) {
-					case NihongoNoSujiCli::EnumMethod::DIGITS:
-						print_digits(buf, DIGIT_MAP_ARABIC_SEP, input_string);
-						break;
-
-					case NihongoNoSujiCli::EnumMethod::NUMBERS:
-						print_digits(buf, DIGIT_MAP_ARABIC, input_string);
-						break;
-
-					default:
-						break;
-				}
-				say(input_string);
-				break;
-
-			default:
-				break;
-		}
-	}
-
-	void read_output(std::string& buf) {
-		buf.resize(0);
+	bool read_line(FILE* input, String_t& result, const bool skip_spaces) {
+		std::string buf;
 		int ch;
-		while((ch = getchar()) != '\n') {
-			if(not isspace(ch)) {
-				buf.push_back(ch);
+		while((ch = getc(input)) != EOF) {
+			if(ch == '\n') {
+				break;
 			}
+			if(skip_spaces && isspace(ch)) {
+				continue;
+			}
+			buf.push_back(ch);
 		}
+		result = to_u32_string(buf);
+		return ch != EOF;
 	}
 
-	void generate_reference(const Buffer_t& buf, std::string& ref) const {
-		ref.resize(0);
-		switch(_cli.output_type.value.value) {
-			case NihongoNoSujiCli::EnumOutputType::ARABIC:
-				print_digits(buf, DIGIT_MAP_ARABIC, ref);
-				break;
-
-			case NihongoNoSujiCli::EnumOutputType::HIRAGANA:
-				switch(_cli.action.method.value) {
-					case NihongoNoSujiCli::EnumMethod::DIGITS:
-						print_digits(buf, DIGIT_MAP_HIRAGANA, ref);
-						break;
-
-					case NihongoNoSujiCli::EnumMethod::NUMBERS:
-						print_number_hiragana(buf, ref);
-						break;
-
-					default:
-						break;
-				}
-				break;
-
-			default:
-				break;
-		}
-	}
 
 	template <typename M>
-	static void print_digits(const Buffer_t& buf, const M& map, std::string& output) {
-		for(const auto& item : buf) {
+	static void write_digits(const Buffer_t& input, const M& map, String_t& output) {
+		for(const auto& item : input) {
 			output.append(map[item]);
 		}
 	}
 
-	static void print_number_kanji(const Buffer_t& buf, std::string& output) {
+	static void write_number_kanji(const Buffer_t& buf, String_t& output) {
 		output.resize(0);
 
 		bool has_man = false;
@@ -255,7 +263,7 @@ public:
 						output.append(DIGIT_MAP_KANJI[buf[idx]]);
 					}
 					if(buf[idx] > 0) {
-						output.append("十");
+						output.append(U"十");
 					}
 					break;
 
@@ -264,7 +272,7 @@ public:
 						output.append(DIGIT_MAP_KANJI[buf[idx]]);
 					}
 					if(buf[idx] > 0) {
-						output.append("百");
+						output.append(U"百");
 					}
 					break;
 
@@ -273,7 +281,7 @@ public:
 						output.append(DIGIT_MAP_KANJI[buf[idx]]);
 					}
 					if(buf[idx] > 0) {
-						output.append("千");
+						output.append(U"千");
 					}
 					break;
 
@@ -282,7 +290,7 @@ public:
 						output.append(DIGIT_MAP_KANJI[buf[idx]]);
 					}
 					if(buf[idx] > 0 || has_man) {
-						output.append("万");
+						output.append(U"万");
 					}
 					break;
 
@@ -292,7 +300,7 @@ public:
 					}
 					if(buf[idx] > 0) {
 						has_man = true;
-						output.append("十");
+						output.append(U"十");
 					}
 					break;
 
@@ -302,7 +310,7 @@ public:
 					}
 					if(buf[idx] > 0) {
 						has_man = true;
-						output.append("百");
+						output.append(U"百");
 					}
 					break;
 
@@ -312,7 +320,7 @@ public:
 					}
 					if(buf[idx] > 0) {
 						has_man = true;
-						output.append("千");
+						output.append(U"千");
 					}
 					break;
 
@@ -321,7 +329,7 @@ public:
 						output.append(DIGIT_MAP_KANJI[buf[idx]]);
 					}
 					if(buf[idx] > 0) {
-						output.append("億");
+						output.append(U"億");
 					}
 					break;
 
@@ -331,11 +339,11 @@ public:
 		}
 
 		if(output.empty()) {
-			output = "ゼロ";
+			output = U"ゼロ";
 		}
 	}
 
-	static void print_number_hiragana(const Buffer_t& buf, std::string& output) {
+	static void write_number_hiragana(const Buffer_t& buf, String_t& output) {
 		output.resize(0);
 
 		bool has_man = false;
@@ -356,14 +364,14 @@ public:
 						output.append(DIGIT_MAP_HIRAGANA[buf[idx]]);
 					}
 					if(buf[idx] > 0) {
-						output.append("じゅう");
+						output.append(U"じゅう");
 					}
 					break;
 
 				case 2u:
 					switch(buf[idx]) {
 						case 1u:
-							output.append("ひゃく");
+							output.append(U"ひゃく");
 							break;
 
 						case 2u:
@@ -372,19 +380,19 @@ public:
 						case 7u:
 						case 9u:
 							output.append(DIGIT_MAP_HIRAGANA[buf[idx]]);
-							output.append("ひゃく");
+							output.append(U"ひゃく");
 							break;
 
 						case 3u:
-							output.append("さんびゃく");
+							output.append(U"さんびゃく");
 							break;
 
 						case 6u:
-							output.append("ろっぴゃく");
+							output.append(U"ろっぴゃく");
 							break;
 
 						case 8u:
-							output.append("はっぴゃく");
+							output.append(U"はっぴゃく");
 							break;
 
 					}
@@ -393,7 +401,7 @@ public:
 				case 3u:
 					switch(buf[idx]) {
 						case 1u:
-							output.append("せん");
+							output.append(U"せん");
 							break;
 
 						case 2u:
@@ -403,15 +411,15 @@ public:
 						case 7u:
 						case 9u:
 							output.append(DIGIT_MAP_HIRAGANA[buf[idx]]);
-							output.append("せん");
+							output.append(U"せん");
 							break;
 
 						case 3u:
-							output.append("さんぜん");
+							output.append(U"さんぜん");
 							break;
 
 						case 8u:
-							output.append("はっせん");
+							output.append(U"はっせん");
 							break;
 
 					}
@@ -422,7 +430,7 @@ public:
 						output.append(DIGIT_MAP_HIRAGANA[buf[idx]]);
 					}
 					if(buf[idx] > 0 || has_man) {
-						output.append("まん");
+						output.append(U"まん");
 					}
 					break;
 
@@ -432,7 +440,7 @@ public:
 					}
 					if(buf[idx] > 0) {
 						has_man = true;
-						output.append("じゅう");
+						output.append(U"じゅう");
 					}
 					break;
 
@@ -443,7 +451,7 @@ public:
 
 					switch(buf[idx]) {
 						case 1u:
-							output.append("ひゃく");
+							output.append(U"ひゃく");
 							break;
 
 						case 2u:
@@ -452,19 +460,19 @@ public:
 						case 7u:
 						case 9u:
 							output.append(DIGIT_MAP_HIRAGANA[buf[idx]]);
-							output.append("ひゃく");
+							output.append(U"ひゃく");
 							break;
 
 						case 3u:
-							output.append("さんびゃく");
+							output.append(U"さんびゃく");
 							break;
 
 						case 6u:
-							output.append("ろっぴゃく");
+							output.append(U"ろっぴゃく");
 							break;
 
 						case 8u:
-							output.append("はっぴゃく");
+							output.append(U"はっぴゃく");
 							break;
 					}
 					break;
@@ -476,7 +484,7 @@ public:
 
 					switch(buf[idx]) {
 						case 1u:
-							output.append("せん");
+							output.append(U"せん");
 							break;
 
 						case 2u:
@@ -486,15 +494,15 @@ public:
 						case 7u:
 						case 9u:
 							output.append(DIGIT_MAP_HIRAGANA[buf[idx]]);
-							output.append("せん");
+							output.append(U"せん");
 							break;
 
 						case 3u:
-							output.append("さんぜん");
+							output.append(U"さんぜん");
 							break;
 
 						case 8u:
-							output.append("はっせん");
+							output.append(U"はっせん");
 							break;
 					}
 
@@ -505,7 +513,7 @@ public:
 						output.append(DIGIT_MAP_HIRAGANA[buf[idx]]);
 					}
 					if(buf[idx] > 0) {
-						output.append("おく");
+						output.append(U"おく");
 					}
 					break;
 
@@ -515,13 +523,13 @@ public:
 		}
 
 		if(output.empty()) {
-			output = "ゼロ";
+			output = U"ゼロ";
 		}
 	}
 
-	void say(const std::string& to_say) {
+	void say(const String_t& to_say) const {
 		std::string command("trans -b -p  :en :jpn \"");
-		command.append(to_say);
+		command.append(to_basic_string(to_say));
 		command.append("\" >> /dev/null");
 
 		const auto err = system(command.c_str());
@@ -531,13 +539,23 @@ public:
 		}
 	}
 
+	static std::string to_basic_string(const std::u32string& str) {
+		std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> conv;
+		return conv.to_bytes(str);
+	}
+
+	static std::u32string to_u32_string(const std::string& str) {
+		std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> conv;
+		return conv.from_bytes(str);
+	}
+
 };
 
 int main(int argc, char** argv) {
 	NihongoNoSujiCli cli;
 
 	if(not cli.parse_args(argc, argv)) {
-		cli.print_usage(stderr);
+		cli.print_usage(stderr, argv[0]);
 		return EXIT_FAILURE;
 	}
 
