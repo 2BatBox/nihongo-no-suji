@@ -27,93 +27,166 @@ public:
 
 	Buffer_t generate_input() {
 		Buffer_t buf;
-		unsigned with = _cli.digits_from + std::abs(_dm.lrand48() / 16) % (_cli.digits_to - _cli.digits_from + 1u);
-		if(with > 0) {
-			--with;
+		unsigned width = _cli.digits_from + std::abs(_dm.lrand48() / 16) % (_cli.digits_to - _cli.digits_from + 1u);
+		if(width > 0) {
+			--width;
 			buf.push_back((std::abs(_dm.lrand48()) % 9u) + 1u);
-			while(with--) {
+			while(width--) {
 				buf.push_back(std::abs(_dm.lrand48()) % 10u);
 			}
 		}
 		return buf;
 	}
 
-	String_t generate_question(const Buffer_t& buf) const {
+	void time_generate_input(unsigned& hours, unsigned& min) {
+		hours = std::abs(_dm.lrand48() % 24);
+		if(_dm.pass(0.1)) {
+			min = 30u;
+		} else {
+			min = std::abs(_dm.lrand48() % 60);
+		}
+	}
+
+	void show_before(const Buffer_t& buf) const {
 		String_t question;
 
-		switch(_cli.action.action().value) {
-			case NihongoNoSujiCli::EnumMethod::DIGITS:
-				switch(_cli.question.value().value) {
-					case NihongoNoSujiCli::EnumQuestion::ARABIC:   write_digits(buf, DIGIT_MAP_ARABIC, question);     break;
-					case NihongoNoSujiCli::EnumQuestion::HIRAGANA: write_digits(buf, DIGIT_MAP_HIRAGANA, question);   break;
-					case NihongoNoSujiCli::EnumQuestion::KANJI:    write_digits(buf, DIGIT_MAP_KANJI, question);      break;
-					case NihongoNoSujiCli::EnumQuestion::AUDIO:    write_digits(buf, DIGIT_MAP_ARABIC_SEP, question); break;
-					default: assert(false); break;
+		switch(_cli.mode.value().get()) {
+
+			case NihongoNoSujiCli::EnumMode::DIGITS:
+				if(_cli.show_kanji_before.presented()) {
+					write_digits(buf, DIGIT_MAP_KANJI, question);
+				}
+
+				if(_cli.show_kana_before.presented()) {
+					if(not question.empty()) {
+						question.append(U"  ");
+					}
+					write_digits(buf, DIGIT_MAP_HIRAGANA, question);
+				}
+
+				if(_cli.show_arabic_before.presented()) {
+					if(not question.empty()) {
+						question.append(U"  ");
+					}
+					write_digits(buf, DIGIT_MAP_ARABIC, question);
+				}
+
+				if(_cli.play_audio_before.presented()) {
+					String_t to_say;
+					write_digits(buf, DIGIT_MAP_ARABIC_SEP, to_say);
+					say(to_say);
 				}
 				break;
 
-			case NihongoNoSujiCli::EnumMethod::NUMBERS:
-				switch(_cli.question.value().value) {
-					case NihongoNoSujiCli::EnumQuestion::ARABIC:   write_digits(buf, DIGIT_MAP_ARABIC, question); break;
-					case NihongoNoSujiCli::EnumQuestion::HIRAGANA: write_number_hiragana(buf, question);          break;
-					case NihongoNoSujiCli::EnumQuestion::KANJI:    write_number_kanji(buf, question);             break;
-					case NihongoNoSujiCli::EnumQuestion::AUDIO:    write_digits(buf, DIGIT_MAP_ARABIC, question); break;
-					default: assert(false); break;
+			case NihongoNoSujiCli::EnumMode::NUMBERS:
+				if(_cli.show_kanji_before.presented()) {
+					write_number_kanji(buf, question);
+				}
+
+				if(_cli.show_kana_before.presented()) {
+					if(not question.empty()) {
+						question.append(U"  ");
+					}
+					write_number_hiragana(buf, question);
+				}
+
+				if(_cli.show_arabic_before.presented()) {
+					if(not question.empty()) {
+						question.append(U"  ");
+					}
+					write_digits(buf, DIGIT_MAP_ARABIC, question);
+				}
+
+				if(_cli.play_audio_before.presented()) {
+					String_t to_say;
+					write_digits(buf, DIGIT_MAP_ARABIC, to_say);
+					say(to_say);
 				}
 				break;
 
-			default: assert(false); break;
+			default:
+				assert(false);
+				break;
 		}
-
-		return question;
+		if(not question.empty()) {
+			printf("%s  ", to_basic_string(question).c_str());
+		}
 	}
 
-	String_t generate_reference(const Buffer_t& buf) const {
-		String_t reference;
+	void show_after(const Buffer_t& buf) const {
+		String_t question;
 
-		switch(_cli.action.action().value) {
-			case NihongoNoSujiCli::EnumMethod::DIGITS:
-				switch(_cli.answer.value().value) {
-					case NihongoNoSujiCli::EnumAnswer::ARABIC:   write_digits(buf, DIGIT_MAP_ARABIC, reference);   break;
-					case NihongoNoSujiCli::EnumAnswer::HIRAGANA: write_digits(buf, DIGIT_MAP_HIRAGANA, reference); break;
-					case NihongoNoSujiCli::EnumAnswer::KANJI:    write_number_kanji(buf, reference);               break;
-					default: assert(false); break;
+		switch(_cli.mode.value().get()) {
+
+			case NihongoNoSujiCli::EnumMode::DIGITS:
+
+				if(_cli.show_kanji_after.presented()) {
+					write_digits(buf, DIGIT_MAP_KANJI, question);
 				}
+
+				if(_cli.show_kana_after.presented()) {
+					if(not question.empty()) {
+						question.append(U"  ");
+					}
+					write_digits(buf, DIGIT_MAP_HIRAGANA, question);
+				}
+
+				if(_cli.show_arabic_after.presented()) {
+					if(not question.empty()) {
+						question.append(U"  ");
+					}
+					write_digits(buf, DIGIT_MAP_ARABIC, question);
+				}
+
+				if(not question.empty()) {
+					printf("%s\n", to_basic_string(question).c_str());
+					fflush(stdout);
+				}
+
+				if(_cli.play_audio_after.presented()) {
+					String_t to_say;
+					write_digits(buf, DIGIT_MAP_ARABIC_SEP, to_say);
+					say(to_say);
+				}
+
 				break;
 
-			case NihongoNoSujiCli::EnumMethod::NUMBERS:
-				switch(_cli.answer.value().value) {
-					case NihongoNoSujiCli::EnumAnswer::ARABIC:   write_digits(buf, DIGIT_MAP_ARABIC, reference); break;
-					case NihongoNoSujiCli::EnumAnswer::HIRAGANA: write_number_hiragana(buf, reference);          break;
-					case NihongoNoSujiCli::EnumAnswer::KANJI:    write_number_kanji(buf, reference);             break;
-					default: assert(false); break;
+			case NihongoNoSujiCli::EnumMode::NUMBERS:
+				if(_cli.show_kanji_after.presented()) {
+					write_number_kanji(buf, question);
 				}
+
+				if(_cli.show_kana_after.presented()) {
+					if(not question.empty()) {
+						question.append(U"  ");
+					}
+					write_number_hiragana(buf, question);
+				}
+
+				if(_cli.show_arabic_after.presented()) {
+					if(not question.empty()) {
+						question.append(U"  ");
+					}
+					write_digits(buf, DIGIT_MAP_ARABIC, question);
+				}
+				if(not question.empty()) {
+					printf("%s\n", to_basic_string(question).c_str());
+					fflush(stdout);
+				}
+
+				if(_cli.play_audio_after.presented()) {
+					String_t to_say;
+					write_digits(buf, DIGIT_MAP_ARABIC, to_say);
+					say(to_say);
+				}
+
 				break;
 
-			default: assert(false); break;
+			default:
+				assert(false);
+				break;
 		}
 
-		return reference;
-	}
-
-	String_t filter_kanji(const String_t& in) const {
-		String_t result;
-		for(const auto ch : in) {
-			switch(ch) {
-				case U'ニ':
-					result.push_back(U'二');
-					break;
-
-				case U'ー':
-					result.push_back(U'一');
-					break;
-
-				default:
-					result.push_back(ch);
-					break;
-			}
-		}
-		return result;
 	}
 
 	void run() {
@@ -124,36 +197,145 @@ public:
 		unsigned mistakes = 0;
 		while(rounds_left--) {
 
-			const Buffer_t input = generate_input();
-			const String_t question = generate_question(input);
-			const String_t reference = generate_reference(input);
+			if(_cli.mode.value().get() == NihongoNoSujiCli::EnumMode::TIME) {
+				unsigned hours_24 = 0;
+				unsigned hours_12 = 0;
+				unsigned min = 0;
+				time_generate_input(hours_24, min);
 
-			if(_cli.question.value().value == NihongoNoSujiCli::EnumQuestion::AUDIO) {
-				say(question);
-			} else {
-				printf("%-*s ", int(_cli.digits_to), to_basic_string(question).c_str());
-				fflush(stdout);
+				String_t to_say;
+				if(hours_24 < 12u) {
+					hours_12 = hours_24;
+					to_say.append(U"午前");
+				} else {
+					hours_12 = hours_24 - 12u;
+					to_say.append(U"午後");
+				}
+				to_say.append(to_u32_string(std::to_string(hours_12)));
+				to_say.append(U"時");
+
+				switch(min) {
+					case 0:
+						break;
+
+					case 30:
+						to_say.append(U"半");
+						break;
+
+					default:
+						to_say.append(to_u32_string(std::to_string(min)));
+						to_say.append(U"分");
+						break;
+				}
+
+				String_t reference;
+				if(hours_24 < 10) {
+					reference.push_back('0');
+				}
+				reference.append(to_u32_string(std::to_string(hours_24)));
+				reference.push_back(':');
+				if(min < 10) {
+					reference.push_back('0');
+				}
+				reference.append(to_u32_string(std::to_string(min)));
+
+				if(_cli.show_arabic_before.presented()) {
+					printf("%s ", to_basic_string(reference).c_str());
+					fflush(stdout);
+				}
+
+				if(_cli.show_kanji_before.presented()) {
+					printf("%s ", to_basic_string(to_say).c_str());
+					fflush(stdout);
+				}
+
+				if(_cli.play_audio_before.presented()) {
+					say(to_say);
+				}
+
+				// Read the output.
+				String_t output;
+				read_line(stdin, output, true);
+
+				if(_cli.action.action().value == NihongoNoSujiCli::EnumMethod::TEST) {
+					// Check the result.
+					while (output != reference) {
+						++mistakes;
+						printf("%s", TermColor::front(TermColor::RED));
+						printf("%s", to_basic_string(reference).c_str());
+						printf("\n%s", TermColor::reset());
+
+						if(_cli.show_arabic_before.presented()) {
+							printf("%s ", to_basic_string(reference).c_str());
+							fflush(stdout);
+						}
+
+						if(_cli.show_kanji_before.presented()) {
+							printf("%s ", to_basic_string(to_say).c_str());
+							fflush(stdout);
+						}
+
+						if(_cli.play_audio_before.presented()) {
+							say(to_say);
+						}
+
+						fflush(stdout);
+						read_line(stdin, output, true);
+					}
+					printf("\n");
+				}
+
+				if(_cli.show_arabic_after.presented()) {
+					printf("%s ", to_basic_string(reference).c_str());
+					fflush(stdout);
+				}
+
+				if(_cli.show_kanji_after.presented()) {
+					printf("%s ", to_basic_string(to_say).c_str());
+					fflush(stdout);
+				}
+
+				if(_cli.play_audio_after.presented()) {
+					say(to_say);
+				}
+
+				continue;
 			}
+
+			const Buffer_t input = generate_input();
+			String_t reference;
+			write_digits(input, DIGIT_MAP_ARABIC, reference);
+
+			show_before(input);
+			fflush(stdout);
 
 			// Read the output.
 			String_t output;
 			read_line(stdin, output, true);
-			output = filter_kanji(output);
 
-			// Check the result.
-			while(output != reference) {
-				++mistakes;
-				printf("%s", TermColor::front(TermColor::RED));
-				printf("%s", to_basic_string(reference).c_str());
-				printf("\n%s", TermColor::reset());
+			if(_cli.action.action().value == NihongoNoSujiCli::EnumMethod::TEST) {
+				// Check the result.
+				while (output != reference) {
+					++mistakes;
+					printf("%s", TermColor::front(TermColor::RED));
+					printf("%s", to_basic_string(reference).c_str());
+					printf("\n%s", TermColor::reset());
 
-				if(_cli.question.value().value == NihongoNoSujiCli::EnumQuestion::AUDIO) {
-					say(question);
+					show_before(input);
+					fflush(stdout);
+					read_line(stdin, output, true);
 				}
-				read_line(stdin, output, true);
-				output = filter_kanji(output);
+				printf("\n");
 			}
-			printf("\n");
+
+			show_after(input);
+
+			if(_cli.wait_for_user.presented()) {
+				fflush(stdout);
+				printf("<ready>");
+				read_line(stdin, output, true);
+			}
+
 		}
 
 		double miskates_percent = mistakes;
@@ -163,6 +345,7 @@ public:
 		printf("Mistakes : %u of %u (%.2f%%).", mistakes, rounds_total, miskates_percent);
 		const unsigned seconds_total = time(nullptr) - tm_before;
 		printf(" %u seconds.\n", seconds_total);
+
 	}
 
 	// private:
@@ -243,8 +426,6 @@ public:
 	}
 
 	static void write_number_kanji(const Buffer_t& buf, String_t& output) {
-		output.resize(0);
-
 		bool has_man = false;
 
 		for(size_t idx = 0; idx < buf.size(); ++idx) {
@@ -344,8 +525,6 @@ public:
 	}
 
 	static void write_number_hiragana(const Buffer_t& buf, String_t& output) {
-		output.resize(0);
-
 		bool has_man = false;
 
 		for(size_t idx = 0; idx < buf.size(); ++idx) {

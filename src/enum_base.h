@@ -45,7 +45,7 @@ struct EnumField {
 		return ToCStr::to_cstr(val);
 	}
 
-	static constexpr std::string description() {
+	static std::string description() {
 		std::string result("Enum : ");
 		const auto SIZE = static_cast<size_t>(E::__SIZE);
 		result.push_back('[');

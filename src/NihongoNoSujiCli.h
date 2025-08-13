@@ -8,16 +8,16 @@
 struct NihongoNoSujiCli {
 
 	enum EnumMethod : unsigned {
-		DIGITS,
-		NUMBERS,
+		LEARN,
+		TEST,
 		__SIZE
 	};
 
 	struct EnumMethodToCStr {
 		static const char* to_cstr(const EnumMethod& value) {
 			switch(value) {
-				case EnumMethod::DIGITS: return "digits";
-				case EnumMethod::NUMBERS: return "numbers";
+				case EnumMethod::LEARN: return "learn";
+				case EnumMethod::TEST: return "test";
 				default: return "[UNKNOWN]";
 			}
 		}
@@ -25,66 +25,78 @@ struct NihongoNoSujiCli {
 
 	using Method = EnumField<EnumMethod, EnumMethodToCStr>;
 
-
-	enum class EnumQuestion : unsigned {
-		ARABIC,
-		HIRAGANA,
-		KANJI,
-		AUDIO,
+	enum class EnumMode : unsigned {
+		DIGITS,
+		NUMBERS,
+		TIME,
 		__SIZE
 	};
 
-	struct EnumQuestionCStr {
-		static const char* to_cstr(const EnumQuestion& value) {
+	struct EnumModeToCStr {
+		static const char* to_cstr(const EnumMode& value) {
 			switch(value) {
-				case EnumQuestion::ARABIC: return "arabic";
-				case EnumQuestion::HIRAGANA: return "hiragana";
-				case EnumQuestion::KANJI: return "kanji";
-				case EnumQuestion::AUDIO: return "audio";
+				case EnumMode::DIGITS: return "digits";
+				case EnumMode::NUMBERS: return "numbers";
+				case EnumMode::TIME: return "time";
 				default: return "[UNKNOWN]";
 			}
 		}
 	};
 
-	using Question = EnumField<EnumQuestion, EnumQuestionCStr>;
-
-	enum class EnumAnswer : unsigned {
-		ARABIC,
-		HIRAGANA,
-		KANJI,
-		__SIZE
-	};
-
-	struct EnumAnswerCStr {
-		static const char* to_cstr(const EnumAnswer& value) {
-			switch(value) {
-				case EnumAnswer::ARABIC: return "arabic";
-				case EnumAnswer::HIRAGANA: return "hiragana";
-				case EnumAnswer::KANJI: return "kanji";
-				default: return "[UNKNOWN]";
-			}
-		}
-	};
-
-	using Answer = EnumField<EnumAnswer, EnumAnswerCStr>;
+	using Mode = EnumField<EnumMode, EnumModeToCStr>;
 
 	unsigned pr = 1;
+	Option<Mode> mode = Option<Mode>('M', Mode::description(), ++pr);
 	Option<unsigned> rounds = Option<unsigned>('r', "Rounds.", ++pr);
 	Option<unsigned> digits_from = Option<unsigned>('f', "Digits from. (max 9 for numbers mode)", ++pr);
 	Option<unsigned> digits_to = Option<unsigned>('t', "Digits to. (max 9 for numbers mode)", ++pr);
-	Option<Question> question = Option<Question>('q', Question::description(), ++pr);
-	Option<Answer> answer = Option<Answer>('a', Answer::description(), ++pr);
+
+	OptionFlag show_kanji_before = OptionFlag('j', "Show kanji before.", ++pr);
+	OptionFlag show_kanji_after = OptionFlag('J', "Show kanji after.", ++pr);
+
+	OptionFlag show_kana_before = OptionFlag('k', "Show kana before.", ++pr);
+	OptionFlag show_kana_after = OptionFlag('K', "Show kana after.", ++pr);
+
+	OptionFlag show_arabic_before = OptionFlag('a', "Show arabic before.", ++pr);
+	OptionFlag show_arabic_after = OptionFlag('A', "Show arabic after.", ++pr);
+
+	OptionFlag play_audio_before = OptionFlag('p', "Play audio before.", ++pr);
+	OptionFlag play_audio_after = OptionFlag('P', "Play audio after.", ++pr);
+
+	OptionFlag wait_for_user = OptionFlag('w', "Wait for user before the next question.", ++pr);
 
 	AppCliMethod<Method> action;
 
 	NihongoNoSujiCli() {
-		action[EnumMethod::DIGITS]
-			.desc("Digit sequences like phone numbers. (7425 -> ななよんにご).")
-			.mand(rounds, digits_from, digits_to, question, answer);
+		action[EnumMethod::LEARN]
+			.desc("Learning.")
+			.mand(mode, rounds, digits_from, digits_to)
+			.opt(
+				show_kanji_before,
+				show_kanji_after,
+				show_kana_before,
+				show_kana_after,
+				show_arabic_before,
+				show_arabic_after,
+				play_audio_before,
+				play_audio_after,
+				wait_for_user
+			);
 
-		action[EnumMethod::NUMBERS]
-			.desc("Numbers. (7425 -> ななせんよんひゃくにじゅうご).")
-			.mand(rounds, digits_from, digits_to, question, answer);
+		action[EnumMethod::TEST]
+			.desc("Testing.")
+			.mand(mode, rounds, digits_from, digits_to)
+			.opt(
+				show_kanji_before,
+				show_kanji_after,
+				show_kana_before,
+				show_kana_after,
+				show_arabic_before,
+				show_arabic_after,
+				play_audio_before,
+				play_audio_after,
+				wait_for_user
+			);
 
 		action.finalize();
 	}
@@ -97,7 +109,7 @@ struct NihongoNoSujiCli {
 		bool result = true;
 		result = result && digits_from.value() > 0;
 		result = result && digits_from.value() <= digits_to.value();
-		result = result && (action.action().value != EnumMethod::NUMBERS || digits_to.value() < 10u);
+		result = result && (show_kanji_before.presented() || show_kana_before.presented() || show_arabic_before.presented() || play_audio_before.presented());
 		return result;
 	}
 
